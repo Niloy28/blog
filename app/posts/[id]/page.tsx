@@ -9,6 +9,14 @@ type Params = {
 	};
 };
 
+export const generateStaticParams = () => {
+	const posts = getSortedPostsData();
+
+	return posts.map((post) => ({
+		id: post.id,
+	}));
+};
+
 export const generateMetadata = ({ params }: Params) => {
 	const posts = getSortedPostsData();
 	const { id } = params;
