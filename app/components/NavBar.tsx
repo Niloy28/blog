@@ -17,12 +17,14 @@ const NavBar = () => {
 					<Link
 						className="text-white/80 hover:text-white"
 						href="https://github.com/Niloy28"
+						target="_blank"
 					>
 						<FaGithub />
 					</Link>
 					<Link
 						className="text-white/80 hover:text-white"
 						href="https://niloy28.itch.io/"
+						target="_blank"
 					>
 						<FaItchIo />
 					</Link>
