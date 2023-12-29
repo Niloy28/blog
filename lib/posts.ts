@@ -1,53 +1,79 @@
-import fs from "fs";
-import path from "path";
-import matter from "gray-matter";
-import { remark } from "remark";
-import remarkHtml from "remark-html";
+import { compileMDX } from "next-mdx-remote/rsc";
 
-const postsDirectory = path.join(process.cwd(), "posts");
-
-export const getSortedPostsData = () => {
-	// Get file names under /posts
-	const fileNames = fs.readdirSync(postsDirectory);
-	const allPostsData = fileNames.map((fileName) => {
-		// Remove ".md" from file name to get id
-		const id = fileName.replace(/\.md$/, "");
-
-		// Read markdown file as string
-		const fullPath = path.join(postsDirectory, fileName);
-		const fileContents = fs.readFileSync(fullPath, "utf8");
-		const matterResult = matter(fileContents);
-
-		const post: BlogPost = {
-			id,
-			title: matterResult.data.title,
-			date: matterResult.data.date,
-		};
-
-		return post;
-	});
-
-	// Sort posts by date
-	return allPostsData.sort((a, b) => (a.date < b.date ? 1 : -1));
+type FileTree = {
+	tree: [
+		{
+			path: string;
+			type: "blob" | "tree";
+		}
+	];
 };
 
-export const getPostData = async (id: string) => {
-	const fullPath = path.join(postsDirectory, `${id}.md`);
-	const fileContents = fs.readFileSync(fullPath, "utf8");
+export const getPostsMeta = async (): Promise<Meta[] | undefined> => {
+	const res = await fetch(
+		"https://api.github.com/repos/Niloy28/blogposts/git/trees/main?recursive=1",
+		{
+			headers: {
+				Accept: "application/vnd.github+json",
+				Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+				"X-GitHub-Api-Version": "2022-11-28",
+			},
+		}
+	);
 
-	const matterResult = matter(fileContents);
-	const processedContent = await remark()
-		.use(remarkHtml)
-		.process(matterResult.content);
+	if (!res.ok) {
+		return undefined;
+	}
 
-	const contentHtml = processedContent.toString();
+	const fileTree: FileTree = await res.json();
+	const mdxFiles = fileTree.tree
+		.map((obj) => obj.path)
+		.filter((path) => path.endsWith(".mdx"));
 
-	const postWithHtml: BlogPost & { contentHtml: string } = {
-		id,
-		date: matterResult.data.date,
-		title: matterResult.data.title,
-		contentHtml,
+	const posts: Meta[] = [];
+	for (const mdxFile of mdxFiles) {
+		const post = await getPostByName(mdxFile);
+		if (post) {
+			const { meta } = post;
+
+			posts.push(meta);
+		}
+	}
+
+	return posts.sort((a, b) => (a.date < b.date ? 1 : -1));
+};
+
+export const getPostByName = async (
+	fileName: string
+): Promise<BlogPost | undefined> => {
+	const res = await fetch(
+		`https://raw.githubusercontent.com/Niloy28/blogposts/main/${fileName}`,
+		{
+			headers: {
+				Accept: "application/vnd.github+json",
+				Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+				"X-GitHub-Api-Version": "2022-11-28",
+			},
+		}
+	);
+
+	if (!res.ok) {
+		return undefined;
+	}
+
+	const rawMDX = await res.text();
+	if (rawMDX === "404: Not Found") return undefined;
+
+	type MDXMatterType = Omit<Meta, "id">;
+	const { content, frontmatter } = await compileMDX<MDXMatterType>({
+		source: rawMDX,
+		options: { parseFrontmatter: true },
+	});
+
+	const blogPost: BlogPost = {
+		meta: { id: fileName.replace(/\.mdx$/, ""), ...frontmatter },
+		content,
 	};
 
-	return postWithHtml;
+	return blogPost;
 };
