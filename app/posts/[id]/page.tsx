@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import "highlight.js/styles/github-dark.css";
 
-export const revalidate = 180;
+export const revalidate = 3600;
 
 type Params = {
 	params: {
