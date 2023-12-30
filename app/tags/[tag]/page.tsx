@@ -9,6 +9,8 @@ type Params = {
 	};
 };
 
+export const revalidate = 180;
+
 export const generateStaticParams = async () => {
 	const posts = await getPostsMeta();
 
